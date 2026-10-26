@@ -1,7 +1,14 @@
 // Runs in every overlay, isolated from the page. While the overlay is unlocked it draws an edit frame
 // over the page: an outline, a name tab with buttons, a drag surface and resize handles.
-// Nothing is exposed to the page itself.
-const { ipcRenderer } = require("electron");
+// The page itself only gets window.obsstudio, below.
+const { contextBridge, ipcRenderer } = require("electron");
+
+// Pages made for OBS often look for window.obsstudio, for example to drop a preview background they show
+// in a normal browser. This is what an OBS browser source set to "No access to OBS" gives them.
+contextBridge.exposeInMainWorld("obsstudio", {
+  pluginVersion: "2.24.0",
+  getControlLevel: (callback) => typeof callback === "function" && callback(0),
+});
 
 let state = { editing: false, interactive: false, name: "", filled: false, empty: true };
 let host, root;

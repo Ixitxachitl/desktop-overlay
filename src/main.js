@@ -327,6 +327,10 @@ function addExample() {
 // ---------- start up ----------
 app.on("second-instance", () => openEditor());
 app.on("window-all-closed", () => {}); // keep running in the tray
+// Overlays refuse to close (a page's window.close() only hides them), except when quitting.
+app.on("before-quit", () => {
+  for (const o of overlays.values()) o.quitting = true;
+});
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   store?.flush();
