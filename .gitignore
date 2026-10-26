@@ -1,0 +1,15 @@
+node_modules/
+dist/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Claude Code agent worktrees
+.claude/

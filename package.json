@@ -1,0 +1,47 @@
+{
+  "name": "desktop-overlay",
+  "productName": "Desktop Overlay",
+  "version": "0.1.0",
+  "description": "Any web page, local file or HTML as a see-through, always-on-top overlay on the Windows desktop, like an OBS browser source.",
+  "main": "src/main.js",
+  "author": "Ixitxachitl",
+  "license": "GPL-3.0-or-later",
+  "repository": "github:Ixitxachitl/desktop-overlay",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/start.js",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.ixitxachitl.desktop-overlay",
+    "productName": "Desktop Overlay",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "electronLanguages": [
+      "en-US"
+    ],
+    "artifactName": "DesktopOverlay-${version}-windows-${arch}.${ext}",
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "publish": null
+  }
+}

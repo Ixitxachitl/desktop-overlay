@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:" />
+    <title>Desktop Overlay</title>
+    <link rel="stylesheet" href="editor.css" />
+  </head>
+  <body>
+    <header class="top">
+      <img class="logo" src="logo.svg" alt="" />
+      <h1>Desktop Overlay</h1>
+      <div class="add">
+        <span class="add-label">Add</span>
+        <button class="btn go" data-add="url" title="A web address, like an OBS browser source">Web page</button>
+        <button class="btn go" data-add="file" title="An .html file on this computer">Local file</button>
+        <button class="btn go" data-add="html" title="HTML you type in here">Custom HTML</button>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn" id="toggle-all"></button>
+      <button class="btn" id="lock-all"></button>
+      <button class="btn sun" id="open-settings">Settings</button>
+    </header>
+
+    <main class="split">
+      <aside class="list">
+        <ul id="sources" aria-label="Overlays"></ul>
+        <p class="list-empty" id="list-empty">No overlays yet. Add one above.</p>
+      </aside>
+
+      <section class="panel">
+        <!-- one overlay -->
+        <form id="form" hidden autocomplete="off">
+          <div class="card">
+            <h2>Source</h2>
+            <label class="row">
+              <span>Name</span>
+              <input data-field="name" data-commit="input" type="text" maxlength="120" />
+            </label>
+            <div class="row">
+              <span>Type</span>
+              <div class="seg" role="radiogroup">
+                <label><input type="radio" name="kind" data-field="kind" value="url" /><b>Web page</b></label>
+                <label><input type="radio" name="kind" data-field="kind" value="file" /><b>Local file</b></label>
+                <label><input type="radio" name="kind" data-field="kind" value="html" /><b>Custom HTML</b></label>
+              </div>
+            </div>
+            <label class="row" data-when="kind=url">
+              <span>Address</span>
+              <input data-field="url" type="text" spellcheck="false" placeholder="https://… (press Enter to load)" />
+            </label>
+            <div class="row" data-when="kind=file">
+              <span>File</span>
+              <div class="inline">
+                <input data-field="file" type="text" spellcheck="false" placeholder="C:\path\to\page.html" />
+                <button type="button" class="btn small" id="browse">Browse…</button>
+              </div>
+            </div>
+            <label class="check" data-when="kind=file">
+              <input type="checkbox" data-field="liveReload" />
+              <span>Reload when anything in the file's folder changes</span>
+            </label>
+            <div class="row start" data-when="kind=html">
+              <span>HTML</span>
+              <div class="stack">
+                <textarea data-field="html" data-commit="manual" rows="12" spellcheck="false" class="code"></textarea>
+                <div class="inline end">
+                  <small class="hint">Ctrl+S applies it</small>
+                  <button type="button" class="btn small go" data-apply="html">Apply HTML</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Position &amp; size</h2>
+            <div class="row">
+              <span>Fill</span>
+              <div class="seg" role="radiogroup">
+                <label><input type="radio" name="fill" data-field="fill" value="none" /><b>Off</b></label>
+                <label><input type="radio" name="fill" data-field="fill" value="screen" /><b>Whole screen</b></label>
+                <label><input type="radio" name="fill" data-field="fill" value="workarea" /><b>Screen minus taskbar</b></label>
+              </div>
+            </div>
+            <label class="row" data-when="fill!=none">
+              <span>Screen</span>
+              <select data-field="display" id="display"></select>
+            </label>
+            <div class="row" data-when="fill=none">
+              <span>Where</span>
+              <div class="inline nums">
+                <label>X <input data-field="x" type="number" step="1" /></label>
+                <label>Y <input data-field="y" type="number" step="1" /></label>
+                <label>Width <input data-field="width" type="number" min="40" step="1" /></label>
+                <label>Height <input data-field="height" type="number" min="40" step="1" /></label>
+                <button type="button" class="btn small" id="center">Center</button>
+              </div>
+            </div>
+            <p class="hint" data-when="fill=none">
+              Or unlock the overlay and drag it: the yellow tab or anywhere on it moves it, the edges and pink corners
+              resize it. Arrow keys nudge it; hold Alt while dragging to stop it snapping to the screen edges.
+            </p>
+            <p class="hint" data-when="fill!=none">
+              It keeps covering the screen when the resolution changes or the taskbar moves or hides.
+            </p>
+          </div>
+
+          <div class="card">
+            <h2>Behavior</h2>
+            <div class="checks">
+              <label class="check"><input type="checkbox" data-field="visible" /><span>Visible</span></label>
+              <label class="check"><input type="checkbox" data-field="locked" /><span>Locked in place</span></label>
+              <label class="check">
+                <input type="checkbox" data-field="interactive" />
+                <span>Interactive <small>(the page gets mouse clicks; off: clicks go through to what's under it)</small></span>
+              </label>
+              <label class="check"><input type="checkbox" data-field="onTop" /><span>Always on top</span></label>
+              <label class="check"><input type="checkbox" data-field="muted" /><span>Mute audio</span></label>
+              <label class="check"><input type="checkbox" data-field="reloadOnShow" /><span>Reload when shown</span></label>
+            </div>
+            <label class="row">
+              <span>Opacity</span>
+              <div class="inline range">
+                <input type="range" data-field="opacity" min="5" max="100" step="1" />
+                <input type="number" data-field="opacity" min="5" max="100" step="1" /><i>%</i>
+              </div>
+            </label>
+            <label class="row">
+              <span>Zoom</span>
+              <div class="inline range">
+                <input type="range" data-field="zoom" min="25" max="300" step="5" />
+                <input type="number" data-field="zoom" min="25" max="500" step="5" /><i>%</i>
+              </div>
+            </label>
+            <div class="row">
+              <span>Hotkey</span>
+              <div class="stack">
+                <input class="hotkey" data-hotkey="hotkey" type="text" readonly placeholder="Click, then press keys to show / hide this overlay" />
+                <small class="error" data-error="source"></small>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Custom CSS</h2>
+            <textarea data-field="css" data-commit="input" rows="5" spellcheck="false" class="code"></textarea>
+            <div class="inline end">
+              <small class="hint">The default makes the page's background see-through, like in OBS.</small>
+              <button type="button" class="btn small" id="reset-css">Reset to default</button>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="button" class="btn go" id="reload">Reload</button>
+            <button type="button" class="btn" id="devtools">DevTools</button>
+            <button type="button" class="btn" id="duplicate">Duplicate</button>
+            <button type="button" class="btn" id="up" title="Move up in the list">▲</button>
+            <button type="button" class="btn" id="down" title="Move down in the list">▼</button>
+            <div class="spacer"></div>
+            <button type="button" class="btn hot" id="remove">Delete</button>
+          </div>
+        </form>
+
+        <!-- app settings -->
+        <div id="settings" hidden>
+          <div class="card">
+            <h2>Settings</h2>
+            <div class="row">
+              <span>Show / hide all</span>
+              <div class="stack">
+                <input class="hotkey" data-hotkey="hotkeyAll" type="text" readonly placeholder="Click, then press keys" />
+                <small class="error" data-error="hotkeyAll"></small>
+              </div>
+            </div>
+            <div class="row">
+              <span>Lock / unlock all</span>
+              <div class="stack">
+                <input class="hotkey" data-hotkey="hotkeyLock" type="text" readonly placeholder="Click, then press keys" />
+                <small class="error" data-error="hotkeyLock"></small>
+              </div>
+            </div>
+            <p class="hint">Click a hotkey box and press the keys. Backspace clears it, Esc keeps the old one.</p>
+            <label class="check"><input type="checkbox" id="launch" /><span>Start with Windows</span></label>
+            <div class="inline">
+              <button type="button" class="btn small" id="open-data">Open the data folder</button>
+              <button type="button" class="btn small" id="close-settings">Done</button>
+            </div>
+          </div>
+          <div class="card">
+            <h2>How it works</h2>
+            <ul class="tips">
+              <li>Every overlay is a see-through window over everything else, like a browser source in OBS but on your desktop.</li>
+              <li><b>Unlocked</b> overlays get a dashed outline and a yellow tab. Drag to move, drag the edges to resize.</li>
+              <li><b>Locked</b> overlays stay put. Unless they're <b>Interactive</b>, clicks go straight through them.</li>
+              <li>The tray icon shows and hides each overlay. Right-click it for everything else.</li>
+            </ul>
+            <p class="hint">Desktop Overlay <span id="version"></span> ·
+              <a href="#" data-url="https://github.com/Ixitxachitl/desktop-overlay">source</a> ·
+              <a href="#" data-url="https://www.ixitxachitl.com/">more stream tools</a></p>
+          </div>
+        </div>
+
+        <div id="empty" class="hello" hidden>
+          <img src="logo.svg" alt="" />
+          <h2>Put any web page on your desktop</h2>
+          <p>Add a web page, a local .html file or some HTML. It floats over everything, see-through where the page is.</p>
+        </div>
+      </section>
+    </main>
+    <div class="toast" id="toast" role="status"></div>
+    <script src="editor.js"></script>
+  </body>
+</html>

@@ -1,0 +1,37 @@
+# Builds Desktop Overlay for Windows and attaches the zip to a GitHub release.
+# The website (stream-tools) picks up the newest release within the hour.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # A mismatch fails here rather than producing a zip whose name
+      # disagrees with the release it is attached to.
+      - name: Check tag matches package.json
+        shell: pwsh
+        run: |
+          $declared = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tag = '${{ github.ref_name }}' -replace '^v', ''
+          if ($declared -ne $tag) { throw "Tag v$tag does not match package.json version $declared." }
+
+      - run: npm ci
+      - run: npm run dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          make_latest: true
