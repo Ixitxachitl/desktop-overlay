@@ -40,7 +40,9 @@ Download `DesktopOverlay-<version>-windows-x64.zip` from
 Windows 11 puts new tray icons in the **^** overflow menu; drag it onto the taskbar to keep it in reach.
 Click the tray icon for the editor, right-click it for the menu.
 
-Overlays and settings are saved in `%APPDATA%\Desktop Overlay\overlays.json`.
+Overlays and settings are saved in `%APPDATA%\Desktop Overlay\overlays.json`, with the version before
+the last change in `overlays.json.bak`. Every save is forced onto the disk, and if the file is ever
+damaged (a crash or power cut mid-save), the app starts from the backup and keeps the damaged file aside.
 
 ## System stats
 

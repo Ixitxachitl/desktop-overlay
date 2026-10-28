@@ -376,7 +376,11 @@ app.on("before-quit", () => {
 });
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
-  store?.flush();
+  try {
+    store?.flush();
+  } catch {
+    // the last save stands
+  }
   for (const o of overlays.values()) o.destroy();
   statsServer?.close();
   stats?.stop(); // ends PresentMon and its trace session

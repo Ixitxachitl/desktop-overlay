@@ -68,17 +68,29 @@ function cleanPatch(patch) {
   return out;
 }
 
+// The saved data in a file, or null if it's missing or broken (a crash can leave a file full of zeros).
+function readData(file) {
+  try {
+    // (a file saved by Notepad can start with a byte order mark)
+    const data = JSON.parse(fs.readFileSync(file, "utf8").replace(/^﻿/, ""));
+    return data && Array.isArray(data.sources) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 class Store {
   constructor(dir) {
     this.file = path.join(dir, "overlays.json");
-    this.isNew = !fs.existsSync(this.file);
-    let data = {};
-    try {
-      // (a file saved by Notepad can start with a byte order mark)
-      data = JSON.parse(fs.readFileSync(this.file, "utf8").replace(/^﻿/, ""));
-    } catch {
-      // first run, or a broken file: start empty (a broken file is kept as .bak)
-      if (!this.isNew) fs.copyFileSync(this.file, this.file + ".bak");
+    // The saved file; else a newer one a crash interrupted mid-save; else the one before the last save.
+    const files = [this.file, this.file + ".tmp", this.file + ".bak"];
+    this.isNew = !files.some((f) => fs.existsSync(f));
+    const found = files.map((f) => [f, readData(f)]).find(([, d]) => d);
+    const data = found ? found[1] : {};
+    this.recoveredFrom = found && found[0] !== this.file ? path.basename(found[0]) : null;
+    // A broken file is kept aside, never over the backup.
+    if (fs.existsSync(this.file) && !readData(this.file)) {
+      fs.renameSync(this.file, path.join(dir, `overlays.broken-${Date.now()}.json`));
     }
     this.sources = (Array.isArray(data.sources) ? data.sources : []).map((s) => ({
       ...sourceDefaults(),
@@ -133,18 +145,34 @@ class Store {
     this.save();
   }
 
-  // Writes are batched, and go through a temporary file so a crash can't leave half a file.
-  save() {
+  // Writes are batched. Each one is made crash-proof: the new version is written to a temporary file and
+  // forced onto the disk before it replaces anything (otherwise Windows can keep it in memory, and a crash
+  // leaves a file full of zeros), and the version it replaces is kept as overlays.json.bak.
+  save(delay = 300) {
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.flush(), 300);
+    this.timer = setTimeout(() => {
+      try {
+        this.flush();
+      } catch {
+        this.save(1000); // something (antivirus, a backup tool) had the file open; try again shortly
+      }
+    }, delay);
   }
 
   flush() {
     clearTimeout(this.timer);
     const json = JSON.stringify({ version: 1, sources: this.sources, settings: this.settings }, null, 2);
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    fs.writeFileSync(this.file + ".tmp", json);
-    fs.renameSync(this.file + ".tmp", this.file);
+    const tmp = this.file + ".tmp";
+    const fd = fs.openSync(tmp, "w");
+    try {
+      fs.writeSync(fd, json);
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    if (fs.existsSync(this.file)) fs.renameSync(this.file, this.file + ".bak");
+    fs.renameSync(tmp, this.file);
   }
 }
 
