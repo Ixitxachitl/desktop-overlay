@@ -62,26 +62,46 @@
     if (view === "settings") renderSettings();
   }
 
+  // One row per overlay, kept and updated in place: a row replaced between mouse-down and mouse-up
+  // never gets the click.
   function renderList() {
     const ul = $("#sources");
-    ul.innerHTML = "";
-    for (const s of state.sources) {
-      const li = document.createElement("li");
-      li.className = `src${s.id === selected && view === "source" ? " sel" : ""}${s.visible ? "" : " off"}`;
-      li.dataset.id = s.id;
-      li.innerHTML = `
-        <button class="icon${s.visible ? " on" : ""}" data-toggle="visible" title="${s.visible ? "Hide" : "Show"}">${s.visible ? ICONS.shown : ICONS.hidden}</button>
-        <div class="name"></div>
-        <button class="icon${s.locked ? "" : " on"}" data-toggle="locked" title="${s.locked ? "Unlock to move and resize" : "Lock in place"}">${s.locked ? ICONS.locked : ICONS.unlocked}</button>`;
-      const name = $(".name", li);
-      name.textContent = s.name || "(unnamed)";
-      const kind = document.createElement("small");
-      kind.className = "kind";
-      kind.textContent = describe(s);
-      name.append(kind);
-      ul.append(li);
-    }
+    const rows = new Map([...ul.children].map((li) => [li.dataset.id, li]));
+    state.sources.forEach((s, i) => {
+      let li = rows.get(s.id);
+      rows.delete(s.id);
+      if (!li) {
+        li = document.createElement("li");
+        li.dataset.id = s.id;
+        li.innerHTML = `
+          <button class="icon" data-toggle="visible"></button>
+          <div class="name"><span></span><small class="kind"></small></div>
+          <button class="icon" data-toggle="locked"></button>`;
+      }
+      if (ul.children[i] !== li) ul.insertBefore(li, ul.children[i] || null);
+      setIf(li, "className", `src${s.id === selected && view === "source" ? " sel" : ""}${s.visible ? "" : " off"}`);
+      setToggle($('[data-toggle="visible"]', li), s.visible, s.visible ? "Hide" : "Show", s.visible ? ICONS.shown : ICONS.hidden);
+      setToggle($('[data-toggle="locked"]', li), !s.locked, s.locked ? "Unlock to move and resize" : "Lock in place", s.locked ? ICONS.locked : ICONS.unlocked);
+      setIf($(".name span", li), "textContent", s.name || "(unnamed)");
+      setIf($(".kind", li), "textContent", describe(s));
+    });
+    for (const li of rows.values()) li.remove(); // overlays that were deleted
     $("#list-empty").hidden = state.sources.length > 0;
+  }
+
+  // Sets a property only when it differs, so unchanged parts of the page aren't rebuilt.
+  function setIf(el, prop, value) {
+    if (el[prop] !== value) el[prop] = value;
+  }
+
+  // A list icon button: highlighted or not, its tooltip, and its picture (redrawn only when it changes).
+  function setToggle(btn, on, title, svg) {
+    setIf(btn, "className", `icon${on ? " on" : ""}`);
+    setIf(btn, "title", title);
+    if (btn.dataset.svg !== title) {
+      btn.dataset.svg = title;
+      btn.innerHTML = svg;
+    }
   }
 
   // Fills the form from the selected source, leaving alone whatever is being typed in.
@@ -419,13 +439,13 @@
   }
 
   // ---------- start ----------
-  app.onState((s) => {
+  // A snapshot older than the one shown (one that arrived late) would undo changes, so it's dropped.
+  const receive = (s) => {
+    if (s.seq < (state.seq || 0)) return;
     state = s;
     render();
-  });
+  };
+  app.onState(receive);
   app.onSelect((id) => select(id));
-  app.state().then((s) => {
-    state = s;
-    render();
-  });
+  app.state().then(receive);
 })();

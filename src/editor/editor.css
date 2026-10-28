@@ -37,6 +37,16 @@ body {
   height: 100%;
 }
 
+/* Only the list and the panel scroll, never the page around them. */
+html,
+body {
+  overflow: hidden;
+}
+.list,
+.panel {
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   display: flex;
@@ -325,6 +335,7 @@ input:disabled {
   box-shadow: 2px 2px 0 var(--ink);
 }
 .seg label {
+  position: relative; /* holds its hidden radio button; unanchored, those made the whole page scroll */
   cursor: pointer;
 }
 .seg input {

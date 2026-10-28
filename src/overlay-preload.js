@@ -219,9 +219,11 @@ function watchFit() {
 }
 
 ipcRenderer.on("overlay:state", (_e, s) => {
+  const wasFit = !!state.fit;
   state = s;
   render();
-  watchFit();
+  // Only when fitting is switched on or off: otherwise the size it sets would set it off again.
+  if (!!s.fit !== wasFit) watchFit();
 });
 
 window.addEventListener("DOMContentLoaded", () => {

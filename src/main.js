@@ -58,6 +58,8 @@ function update(id, patch) {
   }
   const r = store.update(id, patch);
   if (!r) return;
+  // Nothing actually changed (a value already set, or clamped back to what it was): nothing to do.
+  if (Object.keys(r.after).every((k) => r.after[k] === r.before[k])) return;
   overlays.get(id)?.apply(r.after);
   if (r.before.hotkey !== r.after.hotkey) registerHotkeys();
   changed();
@@ -210,6 +212,7 @@ function openEditor(selectId) {
 
 function snapshot() {
   return {
+    seq: ++stateSeq, // newer snapshots have bigger numbers, so the editor can drop one that arrives late
     sources: store.sources,
     settings: { ...store.settings, launchAtLogin: launchAtLogin() },
     hotkeyErrors,
@@ -224,11 +227,14 @@ function snapshot() {
   };
 }
 
-// Tells the tray and the editor that something changed (batched, as drags change things often).
-let changedTimer;
+// Tells the tray and the editor that something changed: within 30 ms of the first change, with everything
+// that changed meanwhile (a steady stream of changes can't hold it back).
+let changedTimer = null;
+let stateSeq = 0;
 function changed() {
-  clearTimeout(changedTimer);
+  if (changedTimer) return;
   changedTimer = setTimeout(() => {
+    changedTimer = null;
     refreshTray();
     if (editor && !editor.isDestroyed()) editor.webContents.send("editor:state", snapshot());
   }, 30);
@@ -314,12 +320,14 @@ ipcMain.on("overlay:gesture", (e, phase, edge, snap) => {
   else if (phase === "end") o.endGesture();
 });
 // Fit to content: the frame measured the page (in CSS pixels, so zoom scales it).
+const MIN_FIT_SIZE = 16; // the smallest width or height store.js allows
 ipcMain.on("overlay:content-size", (e, w, h) => {
   const o = overlayFor(e);
   const s = o && store.get(o.id);
   if (!s || !s.fit || s.fill !== "none" || o.gesture || !(w > 0 && h > 0)) return;
-  const width = Math.round((w * s.zoom) / 100);
-  const height = Math.round((h * s.zoom) / 100);
+  // within the sizes an overlay can have, or a page smaller than that would keep asking
+  const width = Math.max(MIN_FIT_SIZE, Math.round((w * s.zoom) / 100));
+  const height = Math.max(MIN_FIT_SIZE, Math.round((h * s.zoom) / 100));
   if (Math.abs(width - s.width) > 1 || Math.abs(height - s.height) > 1) update(o.id, { width, height });
 });
 ipcMain.on("overlay:nudge", (e, dx, dy) => {
