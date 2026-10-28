@@ -33,6 +33,8 @@ function sourceDefaults() {
     interactive: false, // when locked: true lets the page take the mouse, false lets clicks through
     onTop: true,
     opacity: 100,
+    hoverFade: false, // fade to hoverOpacity while the mouse is over it (when locked)
+    hoverOpacity: 10,
     zoom: 100,
     muted: false,
     reloadOnShow: false,
@@ -42,7 +44,7 @@ function sourceDefaults() {
 }
 
 const ENUMS = { kind: ["url", "file", "html"], fill: ["none", "screen", "workarea"] };
-const RANGES = { opacity: [5, 100], zoom: [25, 500], width: [40, 16384], height: [40, 16384], x: [-65536, 65536], y: [-65536, 65536] };
+const RANGES = { opacity: [5, 100], hoverOpacity: [0, 100], zoom: [25, 500], width: [40, 16384], height: [40, 16384], x: [-65536, 65536], y: [-65536, 65536] };
 
 // Coerces a patch from the editor into valid fields; drops anything unknown or malformed.
 function cleanPatch(patch) {

@@ -51,9 +51,8 @@
               <input data-field="url" type="text" spellcheck="false" placeholder="https://… (press Enter to load)" />
             </label>
             <p class="hint" id="stats-hint" hidden>
-              System stats from Desktop Overlay. Add to the address: <code>?scale=1</code> (small),
-              <code>3</code> (big); <code>show=cpu,gpu,vram,fps,app</code> to pick rows; <code>bg=0</code> for no
-              panel. The same address works as an OBS browser source while Desktop Overlay runs.
+              System stats from Desktop Overlay; set it up under Stats panel below. The same address works as an OBS
+              browser source while Desktop Overlay runs.
             </p>
             <div class="row" data-when="kind=file">
               <span>File</span>
@@ -128,7 +127,18 @@
               <label class="check"><input type="checkbox" data-field="onTop" /><span>Always on top</span></label>
               <label class="check"><input type="checkbox" data-field="muted" /><span>Mute audio</span></label>
               <label class="check"><input type="checkbox" data-field="reloadOnShow" /><span>Reload when shown</span></label>
+              <label class="check">
+                <input type="checkbox" data-field="hoverFade" />
+                <span>Fade when the mouse is over it <small>(when locked, so you can see what's underneath)</small></span>
+              </label>
             </div>
+            <label class="row" data-when="hoverFade=true">
+              <span>Faded to</span>
+              <div class="inline range">
+                <input type="range" data-field="hoverOpacity" min="0" max="100" step="1" />
+                <input type="number" data-field="hoverOpacity" min="0" max="100" step="1" /><i>%</i>
+              </div>
+            </label>
             <label class="row">
               <span>Opacity</span>
               <div class="inline range">
@@ -150,6 +160,38 @@
                 <small class="error" data-error="source"></small>
               </div>
             </div>
+          </div>
+
+          <div class="card" id="stats-card" hidden>
+            <h2>Stats panel</h2>
+            <div class="row">
+              <span>Show</span>
+              <div class="inline">
+                <label class="check"><input type="checkbox" data-stats-row="cpu" /><span>CPU</span></label>
+                <label class="check"><input type="checkbox" data-stats-row="gpu" /><span>GPU</span></label>
+                <label class="check"><input type="checkbox" data-stats-row="vram" /><span>Video memory</span></label>
+                <label class="check"><input type="checkbox" data-stats-row="fps" /><span>Frame rate</span></label>
+                <label class="check"><input type="checkbox" data-stats-row="app" /><span>App name</span></label>
+              </div>
+            </div>
+            <div class="row">
+              <span>Layout</span>
+              <div class="seg" role="radiogroup">
+                <label><input type="radio" name="stats-layout" data-stats="layout" value="column" /><b>Column</b></label>
+                <label><input type="radio" name="stats-layout" data-stats="layout" value="row" /><b>One line</b></label>
+              </div>
+            </div>
+            <div class="row">
+              <span>Size</span>
+              <div class="seg" role="radiogroup">
+                <label><input type="radio" name="stats-scale" data-stats="scale" value="1" /><b>Small</b></label>
+                <label><input type="radio" name="stats-scale" data-stats="scale" value="2" /><b>Medium</b></label>
+                <label><input type="radio" name="stats-scale" data-stats="scale" value="3" /><b>Large</b></label>
+                <label><input type="radio" name="stats-scale" data-stats="scale" value="4" /><b>Huge</b></label>
+              </div>
+            </div>
+            <label class="check"><input type="checkbox" data-stats="bg" /><span>Dark panel behind the stats</span></label>
+            <p class="hint">These go into the overlay's address, so copying it to OBS keeps them.</p>
           </div>
 
           <div class="card">

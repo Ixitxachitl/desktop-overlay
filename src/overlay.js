@@ -131,17 +131,23 @@ class Overlay {
 
     if (first || target(src) !== this.loaded) this.load();
     if (first || src.kind !== prev.kind || src.file !== prev.file || src.liveReload !== prev.liveReload) this.watch();
-    if (first || src.css !== prev.css || src.opacity !== prev.opacity) this.applyCss();
+    if (
+      first || src.css !== prev.css || src.opacity !== prev.opacity ||
+      src.hoverFade !== prev.hoverFade || src.hoverOpacity !== prev.hoverOpacity || src.locked !== prev.locked
+    ) this.applyCss();
     if (src.zoom !== prev.zoom) wc.setZoomFactor(src.zoom / 100);
     if (first || src.muted !== prev.muted) wc.setAudioMuted(src.muted);
     if (first || src.onTop !== prev.onTop) win.setAlwaysOnTop(src.onTop, "screen-saver");
     if (src.name !== prev.name) win.setTitle(src.name);
     this.applyBounds();
 
-    // Locked and not interactive means the overlay is invisible to the mouse.
+    // Locked and not interactive means the overlay is invisible to the mouse. Only when that changes:
+    // changing whether a window can take focus also nudges its focus on Windows.
     const passThrough = src.locked && !src.interactive;
-    win.setIgnoreMouseEvents(passThrough);
-    win.setFocusable(!passThrough);
+    if (first || passThrough !== (prev.locked && !prev.interactive)) {
+      win.setIgnoreMouseEvents(passThrough);
+      win.setFocusable(!passThrough);
+    }
 
     if (src.visible && !win.isVisible()) {
       if (!first && src.reloadOnShow) this.load(true);
@@ -176,17 +182,37 @@ class Overlay {
     this.load(true);
   }
 
-  async applyCss() {
+  // One CSS swap at a time, so quick changes (the mouse going in and out) can't cross.
+  applyCss() {
+    this.cssQueue = (this.cssQueue || Promise.resolve()).then(() => this.swapCss());
+    return this.cssQueue;
+  }
+
+  async swapCss() {
     const wc = this.win.webContents;
-    const css = `${this.src.css}\n${this.src.opacity < 100 ? `html { opacity: ${this.src.opacity / 100} !important; }` : ""}`;
+    const s = this.src;
+    // Faded while the mouse is over a locked overlay (unlocked ones stay put, so they can be arranged).
+    const opacity = s.hoverFade && s.locked && this.hovered ? s.hoverOpacity : s.opacity;
+    const css = [
+      s.css,
+      opacity < 100 ? `html { opacity: ${opacity / 100} !important; }` : "",
+      s.hoverFade ? "html { transition: opacity 0.2s !important; }" : "",
+    ].join("\n");
+    // The new CSS goes in before the old comes out, so the page never shows without either.
     const old = this.cssKey;
-    this.cssKey = null;
     try {
+      this.cssKey = css.trim() ? await wc.insertCSS(css, { cssOrigin: "author" }) : null;
       if (old) await wc.removeInsertedCSS(old);
-      if (css.trim()) this.cssKey = await wc.insertCSS(css, { cssOrigin: "author" });
     } catch {
       // the page is mid-navigation; dom-ready will apply it
     }
+  }
+
+  // Called with whether the mouse is over the overlay; fades it if it should.
+  setHovered(hovered) {
+    if (hovered === !!this.hovered) return;
+    this.hovered = hovered;
+    if (this.src.hoverFade && this.src.locked) this.applyCss();
   }
 
   // File sources reload when anything in their folder changes, so editing the page shows up at once.

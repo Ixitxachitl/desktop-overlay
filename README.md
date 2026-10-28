@@ -16,7 +16,11 @@ tray.
 - **Fill:** cover a whole screen, or the screen minus the taskbar. It follows resolution changes and the
   taskbar moving or hiding.
 - **Fit to content:** the overlay takes the size of what's on the page and follows it when that changes.
-- Opacity, zoom, mute, always on top, reload when shown, custom CSS, and DevTools for each overlay.
+- **Fade on mouse-over:** a locked overlay can fade (to 10%, or whatever you set) while the mouse is over
+  it, so you can see what's underneath.
+- **Always on top** stays on top: the overlays are put back in front whenever another window (the taskbar,
+  Game Bar, another always-on-top app) gets activated, without taking focus.
+- Opacity, zoom, mute, reload when shown, custom CSS, and DevTools for each overlay.
 - Hotkeys: show/hide everything (Ctrl+Alt+O), lock/unlock everything (Ctrl+Alt+L), and an optional one per
   overlay. Change them in Settings.
 - **Start with Windows** from the tray menu or Settings.
@@ -42,8 +46,9 @@ Overlays and settings are saved in `%APPDATA%\Desktop Overlay\overlays.json`.
 
 **Add > System stats** in the editor puts the stats panel on your desktop. While Desktop Overlay runs, the
 same panel is at `http://127.0.0.1:7319/` (only reachable from this computer), so it also works as an OBS
-browser source. Options go in the address: `?scale=1` for small text or `3` for big, `show=cpu,gpu,vram,fps,app`
-to pick rows, `bg=0` for no panel.
+browser source. The editor's **Stats panel** section picks the rows, a column or one-line layout, the size,
+and whether there's a dark panel behind it. Those go into the address (`show=cpu,gpu,fps`, `layout=row`,
+`scale=1`–`4`, `bg=0`), so the same address in OBS looks the same.
 
 - **CPU, GPU, video memory:** Windows' own performance counters (the numbers Task Manager shows), for any
   GPU. GPU temperature comes from `nvidia-smi` on NVIDIA cards.
@@ -80,6 +85,7 @@ Set `version` in `package.json`, commit, then tag and push it (`git tag v0.1.0 &
 src/main.js              tray, hotkeys, the editor window, start-up
 src/overlay.js           one overlay window: loading, CSS, click-through, fill, drag and resize
 src/overlay-preload.js   the edit frame drawn over an unlocked overlay
+src/topmost.js           keeps always-on-top overlays in front of the taskbar and other always-on-top windows
 src/store.js             sources and settings in overlays.json
 src/stats/               system stats: Windows readings, PresentMon, CPU temperature, the local server and panel
 vendor/presentmon/       PresentMon.exe, shipped next to the app

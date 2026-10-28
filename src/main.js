@@ -1,9 +1,10 @@
 // Desktop Overlay: web pages as see-through, always-on-top overlays on the Windows desktop,
 // like OBS browser sources. Lives in the system tray.
-const { app, BrowserWindow, Tray, Menu, ipcMain, globalShortcut, screen, dialog, shell, nativeImage, clipboard } = require("electron");
+const { app, BrowserWindow, Tray, Menu, ipcMain, globalShortcut, screen, dialog, shell, nativeImage, clipboard, powerMonitor } = require("electron");
 const path = require("path");
 const { Store, DEFAULT_CSS } = require("./store");
 const { Overlay } = require("./overlay");
+const { keepOnTop } = require("./topmost");
 const { StatsHub } = require("./stats/hub");
 const { startServer } = require("./stats/server");
 
@@ -32,6 +33,7 @@ const STATS_PORT = 7319;
 const STATS_URL = `http://127.0.0.1:${STATS_PORT}/`;
 let stats, statsServer;
 let statsError = null;
+let topmost;
 
 // ---------- overlays ----------
 const hooks = {
@@ -370,6 +372,7 @@ app.on("will-quit", () => {
   for (const o of overlays.values()) o.destroy();
   statsServer?.close();
   stats?.stop(); // ends PresentMon and its trace session
+  topmost?.stop();
 });
 
 app.whenReady().then(() => {
@@ -385,10 +388,31 @@ app.whenReady().then(() => {
   registerHotkeys();
   buildTray();
 
+  // Always-on-top overlays stay in front of the taskbar and other always-on-top windows. Not while the
+  // editor is in use: then it's in front of them, on purpose.
+  topmost = keepOnTop(() =>
+    editor && !editor.isDestroyed() && editor.isFocused()
+      ? []
+      : [...overlays.values()].filter((o) => o.src.visible && o.src.onTop && !o.win.isDestroyed()).map((o) => o.win),
+  );
+  powerMonitor.on("resume", () => topmost.raise());
+  powerMonitor.on("unlock-screen", () => topmost.raise());
+
+  // Fade on mouse-over. A locked overlay lets clicks through, so its page never sees the mouse; this does.
+  setInterval(() => {
+    const p = screen.getCursorScreenPoint();
+    for (const o of overlays.values()) {
+      if (!o.src.hoverFade || o.win.isDestroyed()) continue;
+      const b = o.win.getBounds();
+      o.setHovered(o.src.visible && p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height);
+    }
+  }, 100);
+
   // Filled overlays follow their screen when it changes: resolution, scaling, or the taskbar moving or hiding.
   const follow = () => {
     for (const o of overlays.values()) o.applyBounds();
     rescueOffscreen();
+    topmost.raise();
     changed();
   };
   screen.on("display-metrics-changed", follow);

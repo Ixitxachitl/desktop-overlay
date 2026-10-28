@@ -112,7 +112,9 @@
       el.hidden = (String(s[key]) === value) !== (op === "=");
     }
     for (const f of ["width", "height"]) $(`[data-field="${f}"]`, form).disabled = !!s.fit;
-    $("#stats-hint").hidden = s.kind !== "url" || !state.stats || !s.url.startsWith(state.stats.url);
+    const isStats = s.kind === "url" && !!state.stats && s.url.startsWith(state.stats.url);
+    $("#stats-hint").hidden = $("#stats-card").hidden = !isStats;
+    if (isStats) renderStatsCard(s.url);
     const hk = $('[data-hotkey="hotkey"]', form);
     if (!hk.classList.contains("capturing")) hk.value = pretty(s.hotkey);
     $('[data-error="source"]', form).textContent = state.hotkeyErrors[s.id] || "";
@@ -140,6 +142,37 @@
     signout: "Almost there: sign out of Windows and back in to finish.",
     setup: "Off. Windows needs your OK once.",
   };
+
+  // ---------- the stats panel's settings, kept in its address ----------
+  const STATS_ROWS = ["cpu", "gpu", "vram", "fps", "app"];
+
+  function renderStatsCard(url) {
+    const q = new URL(url).searchParams;
+    const shown = (q.get("show") || STATS_ROWS.join(",")).split(",");
+    for (const el of $$("[data-stats-row]")) el.checked = shown.includes(el.dataset.statsRow);
+    for (const el of $$('[data-stats="layout"]')) el.checked = el.value === (q.get("layout") === "row" ? "row" : "column");
+    for (const el of $$('[data-stats="scale"]')) el.checked = el.value === String(Math.round(+q.get("scale") || 2));
+    $('[data-stats="bg"]').checked = q.get("bg") !== "0";
+  }
+
+  $("#stats-card").addEventListener("change", () => {
+    const s = current();
+    if (!s) return;
+    const url = new URL(s.url);
+    const q = url.searchParams;
+    const rows = $$("[data-stats-row]").filter((el) => el.checked).map((el) => el.dataset.statsRow);
+    if (rows.length && rows.length < STATS_ROWS.length) q.set("show", rows.join(","));
+    else q.delete("show");
+    const layout = $('[data-stats="layout"]:checked')?.value;
+    if (layout === "row") q.set("layout", "row");
+    else q.delete("layout");
+    const scale = $('[data-stats="scale"]:checked')?.value;
+    if (scale && scale !== "2") q.set("scale", scale);
+    else q.delete("scale");
+    if ($('[data-stats="bg"]').checked) q.delete("bg");
+    else q.set("bg", "0");
+    commit("url", url.toString().replace(/%2C/gi, ","));
+  });
 
   // ---------- editing a source ----------
   const pending = new Map(); // field -> timer, for changes made while typing

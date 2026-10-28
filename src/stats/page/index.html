@@ -8,6 +8,7 @@
       Settings, in the address:
         show=cpu,gpu,vram,fps,app   which rows, in this order (default: all of them)
         scale=2                     pixel size: 1 is 8px text, 2 is 16px (default), 3 is 24px…
+        layout=row                  everything on one line instead of a column
         bg=0                        no panel behind the text
     -->
     <style>
@@ -54,6 +55,26 @@
         background: none;
         box-shadow: none;
       }
+      /* each stat's cells; in the column layout they sit straight in the panel's grid */
+      .stat {
+        display: contents;
+      }
+      /* one line: the stats side by side, each with its own label, value, bar and extra */
+      .panel.row {
+        display: inline-flex;
+        gap: calc(var(--u) * 10);
+      }
+      .panel.row .stat {
+        display: inline-flex;
+        align-items: center;
+        gap: calc(var(--u) * 4);
+      }
+      .panel.row .sub {
+        margin: 0;
+      }
+      .panel.row .app {
+        align-self: center;
+      }
       .k {
         color: var(--label);
       }
@@ -67,7 +88,7 @@
       .sub {
         grid-column: 2 / -1;
         margin-top: calc(var(--u) * -2);
-        font-size: calc(var(--u) * 8 * 0.5);
+        font-size: max(8px, calc(var(--u) * 8 * 0.5));
         color: var(--dim);
         text-shadow: calc(var(--u) / 2) calc(var(--u) / 2) 0 var(--ink);
       }
@@ -76,7 +97,7 @@
         max-width: calc(var(--u) * 8 * 22);
         overflow: hidden;
         text-overflow: ellipsis;
-        font-size: calc(var(--u) * 8 * 0.5);
+        font-size: max(8px, calc(var(--u) * 8 * 0.5));
         color: var(--label);
       }
       .bar {
@@ -117,6 +138,7 @@
       document.documentElement.style.setProperty("--u", Math.max(1, Math.round(+q.get("scale") || 2)) + "px");
       const panel = document.getElementById("panel");
       panel.classList.toggle("bare", q.get("bg") === "0");
+      panel.classList.toggle("row", q.get("layout") === "row");
 
       const SEGMENTS = 10;
       const GRAPH = 24; // frame rate history, one column a second
@@ -131,19 +153,20 @@
         }
         if (!["cpu", "gpu", "vram", "fps"].includes(name)) continue;
         const r = (rows[name] = {});
-        panel.append(el("k", name.toUpperCase()));
-        r.v = panel.appendChild(el("v", "--"));
+        const stat = panel.appendChild(el("stat"));
+        stat.append(el("k", name.toUpperCase()));
+        r.v = stat.appendChild(el("v", "--"));
         if (name === "fps") {
-          r.graph = panel.appendChild(document.createElement("canvas"));
+          r.graph = stat.appendChild(document.createElement("canvas"));
           r.graph.width = GRAPH * 2 + 1;
           r.graph.height = 7;
           r.history = [];
         } else {
-          r.bar = panel.appendChild(el("bar"));
+          r.bar = stat.appendChild(el("bar"));
           for (let i = 0; i < SEGMENTS; i++) r.bar.append(document.createElement("i"));
         }
-        r.x = panel.appendChild(el("x"));
-        if (name === "fps") r.sub = panel.appendChild(el("sub"));
+        r.x = stat.appendChild(el("x"));
+        if (name === "fps") r.sub = stat.appendChild(el("sub"));
       }
 
       // green, yellow or pink: for usage high is bad, for frame rate low is bad
