@@ -12,9 +12,10 @@
       <h1>Desktop Overlay</h1>
       <div class="add">
         <span class="add-label">Add</span>
-        <button class="btn go" data-add="url" title="A web address, like an OBS browser source">Web page</button>
-        <button class="btn go" data-add="file" title="An .html file on this computer">Local file</button>
-        <button class="btn go" data-add="html" title="HTML you type in here">Custom HTML</button>
+        <button class="btn small go" data-add="url" title="A web address, like an OBS browser source">Web page</button>
+        <button class="btn small go" data-add="file" title="An .html file on this computer">Local file</button>
+        <button class="btn small go" data-add="html" title="HTML you type in here">Custom HTML</button>
+        <button class="btn small go" id="add-stats" title="CPU, GPU and the frame rate of the app in focus">System stats</button>
       </div>
       <div class="spacer"></div>
       <button class="btn" id="toggle-all"></button>
@@ -49,6 +50,11 @@
               <span>Address</span>
               <input data-field="url" type="text" spellcheck="false" placeholder="https://… (press Enter to load)" />
             </label>
+            <p class="hint" id="stats-hint" hidden>
+              System stats from Desktop Overlay. Add to the address: <code>?scale=1</code> (small),
+              <code>3</code> (big); <code>show=cpu,gpu,vram,fps,app</code> to pick rows; <code>bg=0</code> for no
+              panel. The same address works as an OBS browser source while Desktop Overlay runs.
+            </p>
             <div class="row" data-when="kind=file">
               <span>File</span>
               <div class="inline">
@@ -96,9 +102,14 @@
                 <button type="button" class="btn small" id="center">Center</button>
               </div>
             </div>
+            <label class="check" data-when="fill=none">
+              <input type="checkbox" data-field="fit" />
+              <span>Fit to content <small>(the overlay takes the size of what's on the page, and follows it when that changes)</small></span>
+            </label>
             <p class="hint" data-when="fill=none">
               Or unlock the overlay and drag it: the yellow tab or anywhere on it moves it, the edges and pink corners
-              resize it. Arrow keys nudge it; hold Alt while dragging to stop it snapping to the screen edges.
+              resize it. Its edges snap to the screen, the taskbar and other overlays nearby; hold Alt while dragging
+              to stop that. Arrow keys nudge it.
             </p>
             <p class="hint" data-when="fill!=none">
               It keeps covering the screen when the resolution changes or the taskbar moves or hides.
@@ -185,6 +196,37 @@
               <button type="button" class="btn small" id="open-data">Open the data folder</button>
               <button type="button" class="btn small" id="close-settings">Done</button>
             </div>
+          </div>
+          <div class="card">
+            <h2>System stats</h2>
+            <p class="hint">
+              CPU and GPU use, video memory, and the frame rate of the app in focus, in a little pixel panel. Add
+              it with <b>System stats</b> above, or use this address as a browser source in OBS:
+            </p>
+            <div class="inline">
+              <input type="text" id="stats-url" readonly />
+              <button type="button" class="btn small" id="copy-stats">Copy</button>
+            </div>
+            <small class="error" id="stats-error"></small>
+            <div class="row">
+              <span>Frame rate</span>
+              <div class="stack">
+                <span id="fps-status"></span>
+                <div class="inline" id="fps-allow-row">
+                  <button type="button" class="btn small go" id="fps-allow">Turn on frame rate</button>
+                </div>
+              </div>
+            </div>
+            <p class="hint">
+              Frame rates come from Intel's PresentMon, included with the app. Windows only shows apps' frame
+              times to members of its Performance Log Users group; turning it on adds you, the same thing the
+              Xbox Game Bar's FPS counter asks for.
+            </p>
+            <p class="hint">
+              CPU temperature shows up while MSI Afterburner (with CPU temperature on in its Monitoring settings),
+              HWiNFO (with Shared Memory Support on) or LibreHardwareMonitor (with its Remote Web Server on) is
+              running. Windows can't read it by itself.
+            </p>
           </div>
           <div class="card">
             <h2>How it works</h2>

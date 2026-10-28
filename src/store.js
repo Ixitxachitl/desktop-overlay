@@ -26,6 +26,7 @@ function sourceDefaults() {
     width: 800,
     height: 600,
     fill: "none", // none | screen | workarea (the screen minus the taskbar)
+    fit: false, // size the window to the page's content (when fill is none)
     display: null, // display id for fill; null is the primary display
     visible: true,
     locked: false,

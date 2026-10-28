@@ -101,13 +101,18 @@
       const v = s[el.dataset.field];
       if (el.type === "checkbox") el.checked = !!v;
       else if (el.type === "radio") el.checked = el.value === String(v);
-      else if (el === displaySel) el.value = String(v ?? primary?.id);
-      else el.value = v ?? "";
+      else {
+        // only when it changed: rewriting a long HTML or CSS box on every update is slow
+        const text = el === displaySel ? String(v ?? primary?.id) : String(v ?? "");
+        if (el.value !== text) el.value = text;
+      }
     }
     for (const el of $$("[data-when]", form)) {
       const [, key, op, value] = el.dataset.when.match(/^(\w+)(!?=)(\w+)$/);
       el.hidden = (String(s[key]) === value) !== (op === "=");
     }
+    for (const f of ["width", "height"]) $(`[data-field="${f}"]`, form).disabled = !!s.fit;
+    $("#stats-hint").hidden = s.kind !== "url" || !state.stats || !s.url.startsWith(state.stats.url);
     const hk = $('[data-hotkey="hotkey"]', form);
     if (!hk.classList.contains("capturing")) hk.value = pretty(s.hotkey);
     $('[data-error="source"]', form).textContent = state.hotkeyErrors[s.id] || "";
@@ -123,7 +128,18 @@
     for (const el of $$("#settings [data-error]")) el.textContent = state.hotkeyErrors[el.dataset.error] || "";
     $("#launch").checked = !!state.settings.launchAtLogin;
     $("#version").textContent = "v" + state.version;
+
+    $("#stats-url").value = state.stats.url;
+    $("#stats-error").textContent = state.stats.error || "";
+    $("#fps-status").textContent = FPS_STATUS[state.stats.fps];
+    $("#fps-allow-row").hidden = state.stats.fps !== "setup";
   }
+
+  const FPS_STATUS = {
+    ok: "On. It follows whichever app is in focus.",
+    signout: "Almost there: sign out of Windows and back in to finish.",
+    setup: "Off. Windows needs your OK once.",
+  };
 
   // ---------- editing a source ----------
   const pending = new Map(); // field -> timer, for changes made while typing
@@ -293,6 +309,20 @@
     render();
   });
   $("#launch").addEventListener("change", (e) => app.settings({ launchAtLogin: e.target.checked }));
+  $("#add-stats").addEventListener("click", async () => select(await app.addStats()));
+  $("#copy-stats").addEventListener("click", () => {
+    app.copy(state.stats.url);
+    say("Copied!");
+  });
+  $("#fps-allow").addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    $("#fps-status").textContent = "Waiting for Windows…";
+    const result = await app.allowFps();
+    state.stats.fps = result;
+    e.target.disabled = false;
+    if (result === "setup") say("Not turned on");
+    renderSettings();
+  });
   $("#open-data").addEventListener("click", () => app.openData());
   for (const a of $$("[data-url]")) {
     a.addEventListener("click", (e) => {

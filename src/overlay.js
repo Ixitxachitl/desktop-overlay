@@ -5,7 +5,20 @@ const path = require("path");
 const { pathToFileURL } = require("url");
 
 const MIN_SIZE = 40;
-const SNAP = 10; // DIPs from a screen edge at which a dragged overlay snaps to it
+const SNAP = 10; // DIPs from an edge at which a dragged overlay snaps to it
+const NEARBY = 100; // other overlays closer than this (in DIPs) count for snapping
+
+// How far to shift so the closest of `edges` lands on one of `lines`, if any is within SNAP; else 0.
+function pull(edges, lines) {
+  let best = 0;
+  for (const e of edges) {
+    for (const l of lines) {
+      const d = l - e;
+      if (Math.abs(d) <= SNAP && (!best || Math.abs(d) < Math.abs(best))) best = d;
+    }
+  }
+  return best;
+}
 
 // What gets loaded for a source; a change in this string means the page has to be reloaded.
 function target(src) {
@@ -74,6 +87,9 @@ class Overlay {
       },
     }));
     const wc = win.webContents;
+    // Each overlay's own zoom. By default Chromium shares zoom between pages of the same site, and all
+    // Custom HTML and local file overlays count as one site.
+    wc.setZoomMode("isolated");
 
     // A page calling window.close() only hides its overlay.
     win.on("close", (e) => {
@@ -199,6 +215,8 @@ class Overlay {
       interactive: s.interactive,
       name: s.name,
       filled: s.fill !== "none",
+      fit: s.fit && s.fill === "none",
+      zoom: s.zoom,
       empty: !this.loaded,
     });
   }
@@ -207,6 +225,7 @@ class Overlay {
   // The frame says when a drag starts and ends; in between, the window follows the mouse cursor.
   startGesture(edge, snap) {
     if (this.src.locked || this.src.fill !== "none") return;
+    if (this.src.fit && edge !== "move") return; // the page decides the size
     this.gesture = { edge, snap, cursor: screen.getCursorScreenPoint(), bounds: this.win.getBounds() };
     clearInterval(this.gestureTimer);
     this.gestureTimer = setInterval(() => this.stepGesture(), 8);
@@ -223,20 +242,32 @@ class Overlay {
     if (g.edge === "move") {
       x += dx;
       y += dy;
-      if (g.snap) [x, y] = this.snap(x, y, width, height, p);
+      if (g.snap) {
+        const lines = this.snapLines(p, { x, y, width, height });
+        x += pull([x, x + width], lines.xs);
+        y += pull([y, y + height], lines.ys);
+      }
     } else {
-      if (g.edge.includes("e")) width = Math.max(MIN_SIZE, width + dx);
-      if (g.edge.includes("s")) height = Math.max(MIN_SIZE, height + dy);
-      if (g.edge.includes("w")) {
-        const w = Math.max(MIN_SIZE, width - dx);
-        x += width - w;
-        width = w;
+      // Only the edges being dragged move, and snap.
+      let left = x;
+      let top = y;
+      let right = x + width;
+      let bottom = y + height;
+      const e = g.edge;
+      if (e.includes("w")) left += dx;
+      if (e.includes("e")) right += dx;
+      if (e.includes("n")) top += dy;
+      if (e.includes("s")) bottom += dy;
+      if (g.snap) {
+        const lines = this.snapLines(p, { x: left, y: top, width: right - left, height: bottom - top });
+        if (e.includes("w")) left += pull([left], lines.xs);
+        if (e.includes("e")) right += pull([right], lines.xs);
+        if (e.includes("n")) top += pull([top], lines.ys);
+        if (e.includes("s")) bottom += pull([bottom], lines.ys);
       }
-      if (g.edge.includes("n")) {
-        const h = Math.max(MIN_SIZE, height - dy);
-        y += height - h;
-        height = h;
-      }
+      if (right - left < MIN_SIZE) e.includes("w") ? (left = right - MIN_SIZE) : (right = left + MIN_SIZE);
+      if (bottom - top < MIN_SIZE) e.includes("n") ? (top = bottom - MIN_SIZE) : (bottom = top + MIN_SIZE);
+      [x, y, width, height] = [left, top, right - left, bottom - top];
     }
     const next = { x, y, width, height };
     const have = this.win.getBounds();
@@ -245,15 +276,22 @@ class Overlay {
     }
   }
 
-  // Snaps the window's edges to the edges of the screen (and of the space above the taskbar) under the cursor.
-  snap(x, y, w, h, cursor) {
+  // What a dragged edge can snap to: the edges of the screen under the cursor (and of the space above the
+  // taskbar), and the edges of other overlays near this one, to line them up or butt them together.
+  snapLines(cursor, r) {
+    const xs = [];
+    const ys = [];
     const d = screen.getDisplayNearestPoint(cursor);
-    const near = (v, targets) => targets.find((t) => Math.abs(v - t) <= SNAP) ?? v;
-    for (const r of [d.workArea, d.bounds]) {
-      x = near(x, [r.x, r.x + r.width - w]);
-      y = near(y, [r.y, r.y + r.height - h]);
+    for (const a of [d.workArea, d.bounds]) {
+      xs.push(a.x, a.x + a.width);
+      ys.push(a.y, a.y + a.height);
     }
-    return [x, y];
+    for (const o of this.hooks.others(this.id)) {
+      // side by side (or close to it) for its left and right edges, above or below for its top and bottom
+      if (o.y < r.y + r.height + NEARBY && o.y + o.height > r.y - NEARBY) xs.push(o.x, o.x + o.width);
+      if (o.x < r.x + r.width + NEARBY && o.x + o.width > r.x - NEARBY) ys.push(o.y, o.y + o.height);
+    }
+    return { xs, ys };
   }
 
   endGesture() {

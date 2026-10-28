@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld("app", {
   settings: call("editor:settings"),
   openData: call("editor:openData"),
   openUrl: call("editor:openUrl"),
+  copy: call("editor:copy"),
+  addStats: call("editor:addStats"),
+  allowFps: call("editor:allowFps"),
   onState: (fn) => ipcRenderer.on("editor:state", (_e, s) => fn(s)),
   onSelect: (fn) => ipcRenderer.on("editor:select", (_e, id) => fn(id)),
 });

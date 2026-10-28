@@ -1,7 +1,7 @@
 {
   "name": "desktop-overlay",
   "productName": "Desktop Overlay",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Any web page, local file or HTML as a see-through, always-on-top overlay on the Windows desktop, like an OBS browser source.",
   "main": "src/main.js",
   "author": "Ixitxachitl",
@@ -42,6 +42,18 @@
       ],
       "icon": "build/icon.ico"
     },
-    "publish": null
+    "publish": null,
+    "extraResources": [
+      {
+        "from": "vendor/presentmon",
+        "to": "presentmon"
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/**"
+    ]
+  },
+  "dependencies": {
+    "koffi": "^3.3.4"
   }
 }

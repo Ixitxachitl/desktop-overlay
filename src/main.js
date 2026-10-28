@@ -1,9 +1,14 @@
 // Desktop Overlay: web pages as see-through, always-on-top overlays on the Windows desktop,
 // like OBS browser sources. Lives in the system tray.
-const { app, BrowserWindow, Tray, Menu, ipcMain, globalShortcut, screen, dialog, shell, nativeImage } = require("electron");
+const { app, BrowserWindow, Tray, Menu, ipcMain, globalShortcut, screen, dialog, shell, nativeImage, clipboard } = require("electron");
 const path = require("path");
 const { Store, DEFAULT_CSS } = require("./store");
 const { Overlay } = require("./overlay");
+const { StatsHub } = require("./stats/hub");
+const { startServer } = require("./stats/server");
+
+// A separate data folder (and so a separate running copy), for trying things without touching your overlays.
+if (process.env.DESKTOP_OVERLAY_DATA) app.setPath("userData", path.resolve(process.env.DESKTOP_OVERLAY_DATA));
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -22,9 +27,17 @@ let store, tray, editor;
 const overlays = new Map(); // source id -> Overlay
 let hotkeyErrors = {}; // "hotkeyAll" / "hotkeyLock" / source id -> message
 
+// System stats (CPU, GPU, frame rate), served on this computer for overlays and OBS alike.
+const STATS_PORT = 7319;
+const STATS_URL = `http://127.0.0.1:${STATS_PORT}/`;
+let stats, statsServer;
+let statsError = null;
+
 // ---------- overlays ----------
 const hooks = {
   onBounds: (id, b) => update(id, { x: b.x, y: b.y, width: b.width, height: b.height }),
+  // the other overlays on screen, for snapping to
+  others: (id) => [...overlays.values()].filter((o) => o.id !== id && !o.win.isDestroyed() && o.win.isVisible()).map((o) => o.win.getBounds()),
   onAction: (id, action) => {
     const s = store.get(id);
     if (!s) return;
@@ -204,6 +217,7 @@ function snapshot() {
       return { id: d.id, primary, label: `Screen ${i + 1}: ${d.size.width}×${d.size.height}${primary ? " (main)" : ""}` };
     }),
     defaultCss: DEFAULT_CSS,
+    stats: { url: STATS_URL, error: statsError, fps: stats.fpsAccess() },
     version: app.getVersion(),
   };
 }
@@ -271,6 +285,16 @@ handle("editor:settings", (patch) => {
 });
 handle("editor:openData", () => shell.openPath(app.getPath("userData")));
 handle("editor:openUrl", (url) => /^https:\/\//.test(url) && shell.openExternal(url));
+handle("editor:copy", (text) => typeof text === "string" && clipboard.writeText(text));
+handle("editor:addStats", () => {
+  const wa = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  return addSource({ name: "System stats", kind: "url", url: STATS_URL, fit: true, width: 460, height: 200, x: wa.x + 20, y: wa.y + 20 }).id;
+});
+handle("editor:allowFps", async () => {
+  const r = await stats.requestFpsAccess();
+  changed();
+  return r;
+});
 
 // The edit frame inside each overlay.
 function overlayFor(e) {
@@ -286,6 +310,15 @@ ipcMain.on("overlay:gesture", (e, phase, edge, snap) => {
   if (!o) return;
   if (phase === "start" && ["move", "n", "s", "e", "w", "ne", "nw", "se", "sw"].includes(edge)) o.startGesture(edge, !!snap);
   else if (phase === "end") o.endGesture();
+});
+// Fit to content: the frame measured the page (in CSS pixels, so zoom scales it).
+ipcMain.on("overlay:content-size", (e, w, h) => {
+  const o = overlayFor(e);
+  const s = o && store.get(o.id);
+  if (!s || !s.fit || s.fill !== "none" || o.gesture || !(w > 0 && h > 0)) return;
+  const width = Math.round((w * s.zoom) / 100);
+  const height = Math.round((h * s.zoom) / 100);
+  if (Math.abs(width - s.width) > 1 || Math.abs(height - s.height) > 1) update(o.id, { width, height });
 });
 ipcMain.on("overlay:nudge", (e, dx, dy) => {
   const o = overlayFor(e);
@@ -335,9 +368,16 @@ app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   store?.flush();
   for (const o of overlays.values()) o.destroy();
+  statsServer?.close();
+  stats?.stop(); // ends PresentMon and its trace session
 });
 
 app.whenReady().then(() => {
+  stats = new StatsHub();
+  statsServer = startServer(stats, STATS_PORT, (e) => {
+    statsError = e.code === "EADDRINUSE" ? `Port ${STATS_PORT} is taken by another program.` : e.message;
+    changed();
+  });
   store = new Store(app.getPath("userData"));
   for (const s of store.sources) overlays.set(s.id, new Overlay(s, hooks));
   if (store.isNew) addExample();

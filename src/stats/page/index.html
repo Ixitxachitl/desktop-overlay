@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>System stats</title>
+    <!--
+      System stats from Desktop Overlay. Works as a desktop overlay or an OBS browser source.
+      Settings, in the address:
+        show=cpu,gpu,vram,fps,app   which rows, in this order (default: all of them)
+        scale=2                     pixel size: 1 is 8px text, 2 is 16px (default), 3 is 24px…
+        bg=0                        no panel behind the text
+    -->
+    <style>
+      @font-face {
+        font-family: "Press Start 2P";
+        src: url(fonts/press-start-2p.woff2) format("woff2");
+      }
+      :root {
+        --u: 2px; /* one pixel of the font; set from scale */
+        --ink: #111;
+        --dim: #9d97b8;
+        --label: #fff27a;
+        --good: #39ff88;
+        --warn: #ffe600;
+        --bad: #ff2bd6;
+      }
+      html,
+      body {
+        margin: 0;
+        background: transparent;
+        overflow: hidden;
+      }
+      .panel {
+        display: inline-grid;
+        grid-template-columns: auto auto auto auto;
+        align-items: center;
+        gap: calc(var(--u) * 4) calc(var(--u) * 6);
+        margin: calc(var(--u) * 6);
+        padding: calc(var(--u) * 7) calc(var(--u) * 8);
+        font: calc(var(--u) * 8) / 1 "Press Start 2P", monospace;
+        color: #fff;
+        text-shadow: var(--u) var(--u) 0 var(--ink);
+        white-space: nowrap;
+        background: rgba(18, 10, 38, 0.78);
+        /* a pixel-art border: square corners cut out */
+        box-shadow:
+          0 calc(var(--u) * -2) 0 0 var(--ink),
+          0 calc(var(--u) * 2) 0 0 var(--ink),
+          calc(var(--u) * -2) 0 0 0 var(--ink),
+          calc(var(--u) * 2) 0 0 0 var(--ink),
+          calc(var(--u) * 4) calc(var(--u) * 4) 0 0 rgba(0, 0, 0, 0.35);
+      }
+      .panel.bare {
+        background: none;
+        box-shadow: none;
+      }
+      .k {
+        color: var(--label);
+      }
+      .v {
+        text-align: right;
+        min-width: 4ch;
+      }
+      .x {
+        color: var(--dim);
+      }
+      .sub {
+        grid-column: 2 / -1;
+        margin-top: calc(var(--u) * -2);
+        font-size: calc(var(--u) * 8 * 0.5);
+        color: var(--dim);
+        text-shadow: calc(var(--u) / 2) calc(var(--u) / 2) 0 var(--ink);
+      }
+      .app {
+        grid-column: 1 / -1;
+        max-width: calc(var(--u) * 8 * 22);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: calc(var(--u) * 8 * 0.5);
+        color: var(--label);
+      }
+      .bar {
+        display: flex;
+        gap: var(--u);
+      }
+      .bar i {
+        width: calc(var(--u) * 4);
+        height: calc(var(--u) * 7);
+        background: rgba(255, 255, 255, 0.14);
+        box-shadow: var(--u) var(--u) 0 0 var(--ink);
+      }
+      .bar i.on {
+        background: currentColor;
+      }
+      canvas {
+        display: block;
+        image-rendering: pixelated;
+        width: calc(var(--u) * 49);
+        height: calc(var(--u) * 7);
+      }
+      .good {
+        color: var(--good);
+      }
+      .warn {
+        color: var(--warn);
+      }
+      .bad {
+        color: var(--bad);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="panel" id="panel"></div>
+    <script>
+      const q = new URLSearchParams(location.search);
+      const show = (q.get("show") || "cpu,gpu,vram,fps,app").toLowerCase().split(",").map((s) => s.trim());
+      document.documentElement.style.setProperty("--u", Math.max(1, Math.round(+q.get("scale") || 2)) + "px");
+      const panel = document.getElementById("panel");
+      panel.classList.toggle("bare", q.get("bg") === "0");
+
+      const SEGMENTS = 10;
+      const GRAPH = 24; // frame rate history, one column a second
+      const el = (cls, text = "") => Object.assign(document.createElement("div"), { className: cls, textContent: text });
+
+      // Builds the rows once; update() fills them in.
+      const rows = {};
+      for (const name of show) {
+        if (name === "app") {
+          rows.app = panel.appendChild(el("app"));
+          continue;
+        }
+        if (!["cpu", "gpu", "vram", "fps"].includes(name)) continue;
+        const r = (rows[name] = {});
+        panel.append(el("k", name.toUpperCase()));
+        r.v = panel.appendChild(el("v", "--"));
+        if (name === "fps") {
+          r.graph = panel.appendChild(document.createElement("canvas"));
+          r.graph.width = GRAPH * 2 + 1;
+          r.graph.height = 7;
+          r.history = [];
+        } else {
+          r.bar = panel.appendChild(el("bar"));
+          for (let i = 0; i < SEGMENTS; i++) r.bar.append(document.createElement("i"));
+        }
+        r.x = panel.appendChild(el("x"));
+        if (name === "fps") r.sub = panel.appendChild(el("sub"));
+      }
+
+      // green, yellow or pink: for usage high is bad, for frame rate low is bad
+      const load = (pct) => (pct < 60 ? "good" : pct < 85 ? "warn" : "bad");
+      const smooth = (fps) => (fps >= 55 ? "good" : fps >= 30 ? "warn" : "bad");
+      const COLORS = { good: "#39ff88", warn: "#ffe600", bad: "#ff2bd6" };
+
+      function setBar(r, pct) {
+        const lit = pct == null ? 0 : Math.round((Math.min(100, pct) / 100) * SEGMENTS);
+        r.bar.className = "bar " + (pct == null ? "" : load(pct));
+        [...r.bar.children].forEach((seg, i) => seg.classList.toggle("on", i < lit));
+      }
+
+      const gb = (bytes) => (bytes / 2 ** 30).toFixed(1) + "G";
+
+      function drawGraph(r) {
+        const g = r.graph.getContext("2d");
+        g.clearRect(0, 0, r.graph.width, r.graph.height);
+        const max = Math.max(60, ...r.history.filter(Boolean));
+        r.history.forEach((fps, i) => {
+          const x = r.graph.width - (r.history.length - i) * 2;
+          g.fillStyle = "rgba(255,255,255,0.14)";
+          g.fillRect(x, 0, 1, 7);
+          if (!fps) return;
+          const h = Math.max(1, Math.round((fps / max) * 7));
+          g.fillStyle = COLORS[smooth(fps)];
+          g.fillRect(x, 7 - h, 1, h);
+        });
+      }
+
+      const FPS_NOTES = {
+        setup: "TURN ON IN DESKTOP OVERLAY",
+        signout: "SIGN OUT TO FINISH",
+        idle: "",
+        error: "FPS ERROR",
+      };
+
+      function update(s) {
+        if (rows.cpu) {
+          rows.cpu.v.textContent = s ? Math.round(s.cpu) + "%" : "--";
+          rows.cpu.v.className = "v " + (s ? load(s.cpu) : "");
+          setBar(rows.cpu, s?.cpu);
+          rows.cpu.x.textContent = s?.cpuTemp == null ? "" : Math.round(s.cpuTemp) + "°";
+        }
+        if (rows.gpu) {
+          const u = s?.gpu.usage;
+          rows.gpu.v.textContent = u == null ? "--" : Math.round(u) + "%";
+          rows.gpu.v.className = "v " + (u == null ? "" : load(u));
+          setBar(rows.gpu, u);
+          rows.gpu.x.textContent = s?.gpu.temp == null ? "" : Math.round(s.gpu.temp) + "°";
+        }
+        if (rows.vram) {
+          const { vramUsed: used, vramTotal: total } = s?.gpu || {};
+          const pct = used != null && total ? (used / total) * 100 : null;
+          rows.vram.v.textContent = used == null ? "--" : gb(used);
+          rows.vram.v.className = "v " + (pct == null ? "" : load(pct));
+          setBar(rows.vram, pct);
+          rows.vram.x.textContent = total ? "/" + gb(total) : "";
+        }
+        if (rows.fps) {
+          const f = s?.fps;
+          const ok = f?.status === "ok";
+          rows.fps.v.textContent = ok ? Math.round(f.fps) : "--";
+          rows.fps.v.className = "v " + (ok ? smooth(Math.round(f.fps)) : "");
+          rows.fps.x.textContent = ok ? (f.frametime < 100 ? f.frametime.toFixed(1) : Math.round(f.frametime)) + "MS" : "";
+          rows.fps.sub.textContent = ok ? "1% LOW " + Math.round(f.low1) : FPS_NOTES[f?.status] ?? "";
+          rows.fps.history.push(ok ? f.fps : 0);
+          if (rows.fps.history.length > GRAPH) rows.fps.history.shift();
+          drawGraph(rows.fps);
+        }
+        if (rows.app) rows.app.textContent = s?.app?.name ? "> " + s.app.name.toUpperCase() : "";
+      }
+
+      update(null);
+      const events = new EventSource("events");
+      events.onmessage = (e) => update(JSON.parse(e.data));
+      events.onerror = () => update(null);
+    </script>
+  </body>
+</html>
