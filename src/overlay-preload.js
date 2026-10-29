@@ -25,9 +25,9 @@ const CSS = `
 .frame.interactive .outline { background: none; }
 .surface { position: absolute; inset: 0; pointer-events: auto; cursor: move; }
 .frame.interactive .surface, .frame.filled .surface { display: none; }
-.empty { position: absolute; inset: 0; display: none; place-items: center; text-align: center; padding: 16px;
+.no-source { position: absolute; inset: 0; display: none; place-items: center; text-align: center; padding: 16px;
   color: #fff; font-size: 14px; text-shadow: 0 1px 2px #000; }
-.frame.empty .empty { display: grid; }
+.frame.empty .no-source { display: grid; }
 /* the buttons wrap when the overlay is narrower than the tab */
 .tab { position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
   max-width: calc(100% - 16px); width: max-content; box-sizing: border-box;
@@ -56,7 +56,7 @@ function build() {
   root.innerHTML = `<style>${CSS}</style>
     <div class="frame">
       <div class="outline"></div>
-      <div class="empty">No source yet. Pick a web address, file or HTML for it in the editor.</div>
+      <div class="no-source">No source yet. Pick a web address, file or HTML for it in the editor.</div>
       <div class="surface" data-edge="move"></div>
       <div class="tab" data-edge="move">
         <span class="name"></span>
