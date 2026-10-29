@@ -1,7 +1,7 @@
 {
   "name": "desktop-overlay",
   "productName": "Desktop Overlay",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Any web page, local file or HTML as a see-through, always-on-top overlay on the Windows desktop, like an OBS browser source.",
   "main": "src/main.js",
   "author": "Ixitxachitl",
