@@ -3,6 +3,7 @@ const { BrowserWindow, screen, shell } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const { pathToFileURL } = require("url");
+const { findDisplay } = require("./displays");
 
 const MIN_SIZE = 40;
 const SNAP = 10; // DIPs from an edge at which a dragged overlay snaps to it
@@ -31,9 +32,9 @@ function target(src) {
   return /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : "https://" + url;
 }
 
-// The display a filled overlay covers.
+// The display a filled overlay covers: the primary one while its own isn't connected.
 function displayFor(src) {
-  return screen.getAllDisplays().find((d) => d.id === src.display) || screen.getPrimaryDisplay();
+  return (src.display !== null && findDisplay(src.display, src.displayLabel)) || screen.getPrimaryDisplay();
 }
 
 function boundsFor(src) {

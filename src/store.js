@@ -28,6 +28,14 @@ function sourceDefaults() {
     fill: "none", // none | screen | workarea (the screen minus the taskbar)
     fit: false, // size the window to the page's content (when fill is none)
     display: null, // display id for fill; null is the primary display
+    displayLabel: "", // that display's name, for finding it again if Windows renumbers the displays
+    // Where it was last put (by dragging, resizing or typing a position), kept while its display is missing so
+    // it can go back there: the display, and the distance from its homeAnchor corner (t/b + l/r) to the overlay
+    homeDisplay: null,
+    homeLabel: "",
+    homeAnchor: "tl",
+    homeX: 0,
+    homeY: 0,
     visible: true,
     locked: false,
     interactive: false, // when locked: true lets the page take the mouse, false lets clicks through
@@ -43,8 +51,11 @@ function sourceDefaults() {
   };
 }
 
-const ENUMS = { kind: ["url", "file", "html"], fill: ["none", "screen", "workarea"] };
-const RANGES = { opacity: [5, 100], hoverOpacity: [0, 100], zoom: [25, 500], width: [16, 16384], height: [16, 16384], x: [-65536, 65536], y: [-65536, 65536] };
+const ENUMS = { kind: ["url", "file", "html"], fill: ["none", "screen", "workarea"], homeAnchor: ["tl", "tr", "bl", "br"] };
+const RANGES = {
+  opacity: [5, 100], hoverOpacity: [0, 100], zoom: [25, 500], width: [16, 16384], height: [16, 16384],
+  x: [-65536, 65536], y: [-65536, 65536], homeX: [-65536, 65536], homeY: [-65536, 65536],
+};
 
 // Coerces a patch from the editor into valid fields; drops anything unknown or malformed.
 function cleanPatch(patch) {
@@ -52,8 +63,8 @@ function cleanPatch(patch) {
   const out = {};
   for (const [key, value] of Object.entries(patch || {})) {
     if (key === "id" || !(key in defaults)) continue;
-    if (key === "display") {
-      if (value === null || Number.isFinite(value)) out.display = value;
+    if (key === "display" || key === "homeDisplay") {
+      if (value === null || Number.isFinite(value)) out[key] = value;
     } else if (ENUMS[key]) {
       if (ENUMS[key].includes(value)) out[key] = value;
     } else if (RANGES[key]) {

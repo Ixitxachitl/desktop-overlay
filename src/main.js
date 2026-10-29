@@ -5,6 +5,7 @@ const path = require("path");
 const { Store, DEFAULT_CSS } = require("./store");
 const { Overlay } = require("./overlay");
 const { keepOnTop } = require("./topmost");
+const { labelOf, homeOf, homePosition } = require("./displays");
 const { StatsHub } = require("./stats/hub");
 const { startServer } = require("./stats/server");
 
@@ -50,14 +51,20 @@ const hooks = {
   },
 };
 
-function update(id, patch) {
+const GEOMETRY = ["x", "y", "width", "height"];
+
+// placed: false when the app moves an overlay itself (its display went away or changed), so the spot it was
+// put in stays its home.
+function update(id, patch, { placed = true } = {}) {
   // Filling a screen means the screen the overlay is on now, unless one was picked before.
   const s = store.get(id);
   if (s && patch.fill && patch.fill !== "none" && s.display === null && !("display" in patch)) {
     patch = { ...patch, display: screen.getDisplayMatching({ x: s.x, y: s.y, width: s.width, height: s.height }).id };
   }
+  if (patch.display != null) patch = { ...patch, displayLabel: labelOf(patch.display) };
   const r = store.update(id, patch);
   if (!r) return;
+  if (placed && r.after.fill === "none" && GEOMETRY.some((k) => k in patch)) store.update(id, homeOf(r.after));
   // Nothing actually changed (a value already set, or clamped back to what it was): nothing to do.
   if (Object.keys(r.after).every((k) => r.after[k] === r.before[k])) return;
   overlays.get(id)?.apply(r.after);
@@ -66,7 +73,7 @@ function update(id, patch) {
 }
 
 function addSource(fields, afterId) {
-  const s = store.add(fields, afterId);
+  const s = store.add({ ...fields, ...homeOf({ x: 0, y: 0, width: 800, height: 600, ...fields }) }, afterId);
   overlays.set(s.id, new Overlay(s, hooks));
   changed();
   return s;
@@ -86,16 +93,25 @@ function centredOn(display, width, height) {
   return { x: Math.round(wa.x + (wa.width - width) / 2), y: Math.round(wa.y + (wa.height - height) / 2), width, height };
 }
 
-// Overlays left on a display that's gone come back to the primary one.
-function rescueOffscreen() {
+// Puts overlays where they belong on the displays connected now: home, if their display is connected (it may
+// have moved or changed size since); else, if they'd be off screen, the middle of the primary display until it
+// comes back. Neither changes their home.
+function placeAll() {
   const displays = screen.getAllDisplays();
   for (const s of store.sources) {
-    if (s.fill !== "none") continue;
+    if (s.fill !== "none" || overlays.get(s.id)?.gesture) continue;
+    const at = homePosition(s);
+    if (at) {
+      if (at.x !== s.x || at.y !== s.y) update(s.id, at, { placed: false });
+      continue;
+    }
     const visible = displays.some((d) => {
       const a = d.workArea;
       return s.x < a.x + a.width - 20 && s.x + s.width > a.x + 20 && s.y < a.y + a.height - 20 && s.y + s.height > a.y;
     });
-    if (!visible) update(s.id, centredOn(screen.getPrimaryDisplay(), s.width, s.height));
+    if (!visible) update(s.id, centredOn(screen.getPrimaryDisplay(), s.width, s.height), { placed: false });
+    // saved before overlays had a home: where it is now is home
+    if (s.homeDisplay === null) store.update(s.id, homeOf(s));
   }
 }
 
@@ -394,9 +410,9 @@ app.whenReady().then(() => {
     changed();
   });
   store = new Store(app.getPath("userData"));
+  placeAll(); // before the windows open, so none shows up in the wrong place first
   for (const s of store.sources) overlays.set(s.id, new Overlay(s, hooks));
   if (store.isNew) addExample();
-  rescueOffscreen();
   registerHotkeys();
   buildTray();
 
@@ -420,10 +436,11 @@ app.whenReady().then(() => {
     }
   }, 100);
 
-  // Filled overlays follow their screen when it changes: resolution, scaling, or the taskbar moving or hiding.
+  // Overlays follow their screen when it changes: resolution, scaling, the taskbar moving or hiding, being
+  // rearranged, unplugged or plugged back in.
   const follow = () => {
     for (const o of overlays.values()) o.applyBounds();
-    rescueOffscreen();
+    placeAll();
     topmost.raise();
     changed();
   };

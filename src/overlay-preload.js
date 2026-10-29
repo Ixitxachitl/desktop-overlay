@@ -15,7 +15,9 @@ let host, root;
 
 const CSS = `
 :host { all: initial; }
-.frame { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; display: none;
+/* --k undoes the overlay's zoom, so the whole frame (outline, tab, handles) stays the same size and only the
+   page is zoomed */
+.frame { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; display: none; zoom: var(--k, 1);
   font: 600 12px/1.2 "Segoe UI", system-ui, sans-serif; color: #111; }
 .frame.on { display: block; }
 .outline { position: absolute; inset: 0; border: 3px dashed #00e5ff; box-shadow: inset 0 0 0 1px #111;
@@ -26,10 +28,9 @@ const CSS = `
 .empty { position: absolute; inset: 0; display: none; place-items: center; text-align: center; padding: 16px;
   color: #fff; font-size: 14px; text-shadow: 0 1px 2px #000; }
 .frame.empty .empty { display: grid; }
-/* --k undoes the overlay's zoom, so the tab and corners stay the same size; the buttons wrap when the
-   overlay is narrower than the tab */
-.tab { position: absolute; top: 6px; left: 50%; transform: translateX(-50%) scale(var(--k, 1)); transform-origin: top center;
-  max-width: calc((100% - 16px) / var(--k, 1)); width: max-content; box-sizing: border-box;
+/* the buttons wrap when the overlay is narrower than the tab */
+.tab { position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+  max-width: calc(100% - 16px); width: max-content; box-sizing: border-box;
   display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; padding: 3px 4px 3px 10px;
   pointer-events: auto; cursor: move;
   background: #fff27a; border: 2px solid #111; border-radius: 8px; box-shadow: 3px 3px 0 #111; white-space: nowrap; }
@@ -47,9 +48,6 @@ button.on { background: #39ff88; }
 .h.ne, .h.nw, .h.se, .h.sw { width: 14px; height: 14px; background: #ff2bd6; border: 2px solid #111; }
 .h.nw { top: 0; left: 0; cursor: nwse-resize; } .h.se { bottom: 0; right: 0; cursor: nwse-resize; }
 .h.ne { top: 0; right: 0; cursor: nesw-resize; } .h.sw { bottom: 0; left: 0; cursor: nesw-resize; }
-.h.nw, .h.ne, .h.se, .h.sw { transform: scale(var(--k, 1)); }
-.h.nw { transform-origin: top left; } .h.ne { transform-origin: top right; }
-.h.se { transform-origin: bottom right; } .h.sw { transform-origin: bottom left; }
 `;
 
 function build() {

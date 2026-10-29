@@ -13,6 +13,9 @@ tray.
   edges of the screen, the taskbar and other overlays nearby; hold Alt to stop that.
 - **Locked:** the overlay stays put and clicks go straight through to whatever's under it. Turn on
   **Interactive** to let the page take the mouse instead.
+- **Remembers its screen:** each overlay keeps track of the monitor it's on and where on it, so it stays put
+  when screens are rearranged or change resolution. If its monitor is unplugged or off, it waits on the main
+  screen and goes back once the monitor returns.
 - **Fill:** cover a whole screen, or the screen minus the taskbar. It follows resolution changes and the
   taskbar moving or hiding.
 - **Fit to content:** the overlay takes the size of what's on the page and follows it when that changes.
